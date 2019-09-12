@@ -61,7 +61,7 @@ open class ImportPoEditorStringsTask(): DefaultTask() {
                 if (!dir.isDirectory)
                     dir.mkdir() // not mkdirs, because the parent should always exist and if it doesn't we should fail
                 val data = poProject.exportTranslation(language, ExportFormat.ANDROID_STRINGS).toString(StandardCharsets.UTF_8)
-                File(dir, "strings.xml").writeText(data.replace("^.*><.*$".toRegex(RegexOption.MULTILINE), ""))
+                File(dir, "strings.xml").writeText(data.replace("^.*><.*$\n".toRegex(RegexOption.MULTILINE), ""))
             }
         } catch (e: IOException) {
              System.err.println("IOException updating translations")
