@@ -2,6 +2,7 @@ package com.github.penn5
 
 import groovy.json.JsonSlurper
 import java.lang.RuntimeException
+import java.math.BigDecimal
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
@@ -152,13 +153,13 @@ data class PoEditorProject internal constructor(private val api: PoEditorAPI, va
 }
 
 data class PoEditorLanguageStatus(val name: String, val code: String,
-                                  val translations: Int, val percentage: Int, val updated: Date?) {
+                                  val translations: Int, val percentage: BigDecimal, val updated: Date?) {
     companion object {
         fun fromJson(json: Map<*, *>): PoEditorLanguageStatus {
             val name = json["name"] as String
             val code = json["code"] as String
             val translations = json["translations"] as Int
-            val percentage = json["percentage"] as Int
+            val percentage = (json["percentage"] as? Int)?.toBigDecimal() ?: json["percentage"] as BigDecimal
             val updated = parseDate(json["updated"] as String)
             return PoEditorLanguageStatus(name, code, translations, percentage, updated)
         }
