@@ -60,7 +60,8 @@ open class ImportPoEditorStringsTask(): DefaultTask() {
                     dir = File(resDir, languageTagToAndroid(language))
                 if (!dir.isDirectory)
                     dir.mkdir() // not mkdirs, because the parent should always exist and if it doesn't we should fail
-                File(dir, "strings.xml").writeBytes(poProject.exportTranslation(language, ExportFormat.ANDROID_STRINGS))
+                val data = poProject.exportTranslation(language, ExportFormat.ANDROID_STRINGS).toString(StandardCharsets.UTF_8)
+                File(dir, "strings.xml").writeText(data.replace("^.*><.*$".toRegex(RegexOption.MULTILINE), ""))
             }
         } catch (e: IOException) {
              System.err.println("IOException updating translations")
