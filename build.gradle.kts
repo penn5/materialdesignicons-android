@@ -3,11 +3,11 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     `maven-publish`
     `kotlin-dsl`
-    kotlin("jvm") version "1.3.70"
+    kotlin("jvm") version "1.3.72"
 }
 
 group = "com.github.penn5"
-version = "0.0.4"
+version = "0.0.5"
 
 gradlePlugin {
     plugins {
