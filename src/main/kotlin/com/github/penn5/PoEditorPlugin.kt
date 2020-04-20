@@ -1,16 +1,13 @@
 package com.github.penn5
 
+import com.android.build.gradle.BaseExtension
+import org.gradle.api.DefaultTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.DefaultTask
-import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.TaskAction
-import org.gradle.kotlin.dsl.*
-
-import com.android.build.gradle.api.AndroidBasePlugin
-import com.android.build.gradle.BasePlugin
-import com.android.build.gradle.BaseExtension
-
+import org.gradle.kotlin.dsl.create
+import org.gradle.kotlin.dsl.invoke
+import org.gradle.kotlin.dsl.register
 import java.io.File
 import java.io.IOException
 import java.nio.charset.StandardCharsets
@@ -36,7 +33,7 @@ open class PoEditorPluginExtension {
     var projectId: Int? = null
 }
 
-open class ImportPoEditorStringsTask(): DefaultTask() {
+open class ImportPoEditorStringsTask : DefaultTask() {
     @TaskAction
     fun doAction() {
         try {
@@ -54,10 +51,10 @@ open class ImportPoEditorStringsTask(): DefaultTask() {
 
             var dir: File
             for (language in languages) {
-                if (poProject.referenceLanguage == language)
-                    dir = File(resDir, "values")
+                dir = if (poProject.referenceLanguage == language)
+                    File(resDir, "values")
                 else
-                    dir = File(resDir, languageTagToAndroid(language))
+                    File(resDir, languageTagToAndroid(language))
                 if (!dir.isDirectory)
                     dir.mkdir() // not mkdirs, because the parent should always exist and if it doesn't we should fail
                 val data = poProject.exportTranslation(language, ExportFormat.ANDROID_STRINGS).toString(StandardCharsets.UTF_8)
@@ -68,7 +65,7 @@ open class ImportPoEditorStringsTask(): DefaultTask() {
         }
     }
 
-    private fun languageTagToAndroid(tag: String): String? {
+    private fun languageTagToAndroid(tag: String): String {
         // https://developer.android.com/guide/topics/resources/providing-resources.html#AlternativeResources
         val locale = Locale.forLanguageTag(tag)
         var ret =  "values-${locale.language}"
