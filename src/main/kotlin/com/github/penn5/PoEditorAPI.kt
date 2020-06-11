@@ -1,3 +1,5 @@
+@file:Suppress("unused")
+
 package com.github.penn5
 
 import groovy.json.JsonSlurper
@@ -42,8 +44,8 @@ class PoEditorAPI(private val apiToken: String) {
     }
 }
 
-private fun setNullOnEmpty(string: String): String? {
-    if (string.isEmpty())
+private fun setNullOnEmpty(string: String?): String? {
+    if (string == null || string.isEmpty())
         return null
     return string
 }
@@ -86,7 +88,6 @@ data class ExportFilterFlags(val translated: Boolean?, val fuzzy: Boolean?,
     }
 }
 
-@Suppress("unused")
 enum class ExportFormat(internal val raw: String) {
     PO("po"),
     POT("pot"),
@@ -110,18 +111,18 @@ enum class ExportFormat(internal val raw: String) {
 data class PoEditorProject internal constructor(private val api: PoEditorAPI, val id: Int, val name: String,
                                                 val description: String?, val public: Boolean, val open: Boolean,
                                                 val referenceLanguage: String?, val termsCount: Int, val created: Date) {
-    /*fun getTerms(language: String): List<PoEditorTerm> {
-        val resp = api.post("terms/list", mutableMapOf("id" to id.toString(), "language" to language))!!
-        return (resp["terms"] as List<*>).map{ PoEditorTerm.fromJson(it as Map<*, *>) }
-    }*/
+    fun getTerms(language: String): List<PoEditorTerm> {
+        val resp = api.post("terms/list", mutableMapOf("id" to id.toString(), "language" to language))
+        return (resp["terms"] as List<*>).map { PoEditorTerm.fromJson(it as Map<*, *>) }
+    }
 
     fun listLanguages(): List<PoEditorLanguageStatus> {
         val resp = api.post("languages/list", mutableMapOf("id" to id.toString()))
-        return (resp["languages"] as List<*>).map{ PoEditorLanguageStatus.fromJson(it as Map<*, *>)}
+        return (resp["languages"] as List<*>).map { PoEditorLanguageStatus.fromJson(it as Map<*, *>)}
     }
 
-    fun exportTranslationUrl(language: String, format: ExportFormat,
-                             filters: ExportFilterFlags? = null, alphabetical: Boolean = false): String {
+    private fun exportTranslationUrl(language: String, format: ExportFormat,
+                                     filters: ExportFilterFlags? = null, alphabetical: Boolean = false): String {
         val args = mutableMapOf("id" to id.toString(), "language" to language, "type" to format.raw)
         filters?.let {
             args["filters"] = it.toString()
@@ -166,8 +167,7 @@ data class PoEditorLanguageStatus(val name: String, val code: String,
     }
 }
 
-/*
-private data class PoEditorTerm(val key: String, val context: String?, val plural: String?, val created: Date,
+data class PoEditorTerm(val key: String, val context: String?, val plural: String?, val created: Date,
                 val updated: Date?, val translation: PoEditorTranslation?, val reference: String?,
                 val tags: List<String>, val comment: String?) {
     companion object {
@@ -177,19 +177,19 @@ private data class PoEditorTerm(val key: String, val context: String?, val plura
             val plural = setNullOnEmpty(json["plural"] as String)
             val created = parseDate(json["created"] as String)!!
             val updated = parseDate(json["updated"] as String)
-            val translation = PoEditorTranslation.fromJson(json["translation"] as Map<*,*>)
+            val translation = PoEditorTranslation.fromJson(json["translation"] as Map<*, *>)
             val reference = setNullOnEmpty(json["reference"] as String)
-            val tags = (json["tags"] as List<*>).filterIsInstance(String::class.java).filter{ it.isNotEmpty() }
+            val tags = (json["tags"] as List<*>).filterIsInstance(String::class.java).filter { it.isNotEmpty() }
             val comment = setNullOnEmpty(json["comment"] as String)
             return PoEditorTerm(key, context, plural, created, updated, translation, reference, tags, comment)
         }
     }
 }
 
-private data class PoEditorTranslation(val content: String, val fuzzy: Boolean, val proofread: Boolean?, val updated: Date?) {
+data class PoEditorTranslation(val content: String?, val fuzzy: Boolean, val proofread: Boolean?, val updated: Date?) {
     companion object {
         fun fromJson(json: Map<*, *>): PoEditorTranslation {
-            val content = setNullOnEmpty(json["content"] as String)!!
+            val content = setNullOnEmpty(json["content"] as String)
             val fuzzy = (json["fuzzy"] as Int) > 0
             val proofread = when (json.getOrDefault("proofread", -1) as Int) {
                 -1 -> null
@@ -202,4 +202,3 @@ private data class PoEditorTranslation(val content: String, val fuzzy: Boolean, 
         }
     }
 }
-*/

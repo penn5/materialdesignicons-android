@@ -8,9 +8,10 @@ import org.gradle.api.tasks.TaskAction
 import org.gradle.kotlin.dsl.create
 import org.gradle.kotlin.dsl.invoke
 import org.gradle.kotlin.dsl.register
+import org.redundent.kotlin.xml.PrintOptions
+import org.redundent.kotlin.xml.xml
 import java.io.File
 import java.io.IOException
-import java.nio.charset.StandardCharsets
 import java.util.*
 
 val Project.android: BaseExtension? get() = findProperty("android") as BaseExtension?
@@ -57,8 +58,11 @@ open class ImportPoEditorStringsTask : DefaultTask() {
                     File(resDir, languageTagToAndroid(language))
                 if (!dir.isDirectory)
                     dir.mkdir() // not mkdirs, because the parent should always exist and if it doesn't we should fail
-                val data = poProject.exportTranslation(language, ExportFormat.ANDROID_STRINGS).toString(StandardCharsets.UTF_8)
-                File(dir, "strings.xml").writeText(data.replace("^.*><.*$\n".toRegex(RegexOption.MULTILINE), ""))
+                val terms = poProject.getTerms(language).filterNot { it.tags.contains("ignore-string-android") }
+                val translations = terms.associate { it.key to it.translation?.content }
+                        .filterValues { it != null }.mapValues { it.value!! }
+                val data = dataToStringsXml(translations).toString(PrintOptions(singleLineTextElements = true))
+                File(dir, "strings.xml").writeText(data)
             }
         } catch (e: IOException) {
              System.err.println("IOException updating translations")
@@ -72,5 +76,14 @@ open class ImportPoEditorStringsTask : DefaultTask() {
         if (locale.country != "")
             ret += "-r${locale.country}"
         return ret
+    }
+
+    private fun dataToStringsXml(data: Map<String, String>) = xml("resources") {
+        includeXmlProlog = true
+        data.forEach { (key, value) ->
+            "string"("name" to key) {
+                -value
+            }
+        }
     }
 }

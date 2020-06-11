@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.github.penn5"
-version = "0.0.5"
+version = "0.0.6"
 
 gradlePlugin {
     plugins {
@@ -31,7 +31,8 @@ repositories {
 dependencies {
     implementation(kotlin("stdlib-jdk8"))
     compileOnly(gradleApi())
-    implementation("com.android.tools.build:gradle:3.6.3")
+    implementation("com.android.tools.build:gradle:4.0.0")
+    implementation("org.redundent:kotlin-xml-builder:1.6.0")
 }
 val compileKotlin: KotlinCompile by tasks
 compileKotlin.kotlinOptions {
