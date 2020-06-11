@@ -82,8 +82,12 @@ open class ImportPoEditorStringsTask : DefaultTask() {
         includeXmlProlog = true
         data.forEach { (key, value) ->
             "string"("name" to key) {
-                -value
+                -escapeValue(value)
             }
         }
     }
+
+    private fun escapeValue(value: String) =
+            value.replace("\\", "\\\\").replace("@", "\\@").replace("?", "\\?")
+                    .replace("'", "\\'").replace("\"", "\\\"")
 }

@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.github.penn5"
-version = "0.0.6"
+version = "0.0.7"
 
 gradlePlugin {
     plugins {
