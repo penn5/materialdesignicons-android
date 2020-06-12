@@ -89,5 +89,5 @@ open class ImportPoEditorStringsTask : DefaultTask() {
 
     private fun escapeValue(value: String) =
             value.replace("\\", "\\\\").replace("@", "\\@").replace("?", "\\?")
-                    .replace("'", "\\'").replace("\"", "\\\"")
+                    .replace("'", "\\'").replace("\"", "\\\"").replace("\n", "\\n")
 }
