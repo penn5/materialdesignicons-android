@@ -24,6 +24,7 @@ class PoEditorPlugin : Plugin<Project> {
             extensions.create("poeditor", PoEditorPluginExtension::class)
             tasks {
                 register("importTranslations", ImportPoEditorStringsTask::class)
+                register("importTranslationsForFastlane", ImportPoEditorStringsForFastlaneTask::class)
             }
         }
     }
@@ -44,9 +45,9 @@ open class ImportPoEditorStringsTask : DefaultTask() {
             val projectId = project.poeditor.projectId ?: throw RuntimeException("Project ID not set for PoEditor")
             val poProject = PoEditorAPI(apiToken).getProject(projectId)
 
-            val languages = poProject.listLanguages().map{ it.code }
+            val languages = poProject.listLanguages().map { it.code }
 
-            val srcSet = project.android?.sourceSets?.associate{ Pair(it.name, it.res.srcDirs) }?.getOrDefault("main", null)
+            val srcSet = project.android?.sourceSets?.associate { Pair(it.name, it.res.srcDirs) }?.getOrDefault("main", null)
             val resDir = (srcSet ?: throw RuntimeException("Unable to detect srcSet for res directory")).elementAtOrNull(0)
             resDir ?: throw RuntimeException("Unable to detect res directory for srcSet")
 
@@ -65,12 +66,13 @@ open class ImportPoEditorStringsTask : DefaultTask() {
                 File(dir, "strings.xml").writeText(data)
             }
         } catch (e: IOException) {
-             System.err.println("IOException updating translations")
+            System.err.println("IOException updating translations")
         }
     }
 
     private fun languageTagToAndroid(tag: String): String {
         // https://developer.android.com/guide/topics/resources/providing-resources.html#AlternativeResources
+        // We ought to use BCP47 (as returned by PoEditor) but it isn't supported before API 24
         val locale = Locale.forLanguageTag(tag)
         var ret =  "values-${locale.language}"
         if (locale.country != "")
@@ -90,4 +92,41 @@ open class ImportPoEditorStringsTask : DefaultTask() {
     private fun escapeValue(value: String) =
             value.replace("\\", "\\\\").replace("@", "\\@").replace("?", "\\?")
                     .replace("'", "\\'").replace("\"", "\\\"").replace("\n", "\\n")
+}
+
+open class ImportPoEditorStringsForFastlaneTask : DefaultTask() {
+    @TaskAction
+    fun doAction() {
+        try {
+            // Don't throw an error, probably some other person is building who doesn't have poeditor set up
+            val apiToken: String = project.poeditor.apiToken ?: return
+            // Do throw an error, the user provided an api key but the project is wrong
+            val projectId = project.poeditor.projectId ?: throw RuntimeException("Project ID not set for PoEditor")
+            val poProject = PoEditorAPI(apiToken).getProject(projectId)
+
+            val languages = poProject.listLanguages().map { it.code }
+
+            val resDir = project.rootProject.rootDir.resolve("fastlane/metadata")
+
+            for (language in languages) {
+                val terms = poProject.getTerms(language).filter { it.tags.contains("fastlane-android") }
+                writeFastlaneData(language, terms, resDir)
+            }
+        } catch (e: IOException) {
+            System.err.println("IOException updating translations")
+        }
+    }
+
+    private fun writeFastlaneData(language: String, data: List<PoEditorTerm>, resDir: File) {
+        for (term in data) {
+            term.translation?.content ?: continue
+            val types = term.tags.filter { it.startsWith("fastlane-") }.map { it.substringAfter('-') }
+            types.forEach {
+                val langDir = resDir.resolve(it).resolve(language)
+                langDir.mkdirs()
+                val out = langDir.resolve(term.key + ".txt")
+                out.writeText(term.translation.content)
+            }
+        }
+    }
 }

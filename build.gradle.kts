@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.github.penn5"
-version = "0.0.7"
+version = "0.0.9"
 
 gradlePlugin {
     plugins {
@@ -29,7 +29,6 @@ repositories {
     jcenter()
 }
 dependencies {
-    implementation(kotlin("stdlib-jdk8"))
     compileOnly(gradleApi())
     implementation("com.android.tools.build:gradle:4.0.0")
     implementation("org.redundent:kotlin-xml-builder:1.6.0")
