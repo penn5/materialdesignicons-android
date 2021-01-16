@@ -51,6 +51,13 @@ open class ImportPoEditorStringsTask : DefaultTask() {
             val resDir = (srcSet ?: throw RuntimeException("Unable to detect srcSet for res directory")).elementAtOrNull(0)
             resDir ?: throw RuntimeException("Unable to detect res directory for srcSet")
 
+            for (name in resDir.list { _, name -> name.startsWith("values") }!!) {
+                val dir = resDir.resolve(name)
+                if (!dir.isDirectory)
+                    continue
+                dir.resolve("strings.xml").delete()
+            }
+
             var dir: File
             for (language in languages) {
                 dir = if (poProject.referenceLanguage == language)
@@ -107,6 +114,8 @@ open class ImportPoEditorStringsForFastlaneTask : DefaultTask() {
             val languages = poProject.listLanguages().map { it.code }
 
             val resDir = project.rootProject.rootDir.resolve("fastlane/metadata")
+
+            resDir.deleteRecursively()
 
             for (language in languages) {
                 val terms = poProject.getTerms(language).filter { it.tags.contains("fastlane-android") }
