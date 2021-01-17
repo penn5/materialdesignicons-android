@@ -60,7 +60,7 @@ open class ImportPoEditorStringsTask : DefaultTask() {
 
             var dir: File
             for (language in languages) {
-                dir = if (poProject.referenceLanguage == language)
+                dir = if (Locale.forLanguageTag(poProject.referenceLanguage) == Locale.forLanguageTag(language))
                     File(resDir, "values")
                 else
                     File(resDir, languageTagToAndroid(language))
@@ -73,7 +73,7 @@ open class ImportPoEditorStringsTask : DefaultTask() {
                 File(dir, "strings.xml").writeText(data)
             }
         } catch (e: IOException) {
-            System.err.println("IOException updating translations")
+            e.printStackTrace()
         }
     }
 
@@ -122,20 +122,136 @@ open class ImportPoEditorStringsForFastlaneTask : DefaultTask() {
                 writeFastlaneData(language, terms, resDir)
             }
         } catch (e: IOException) {
-            System.err.println("IOException updating translations")
+            e.printStackTrace()
         }
     }
 
     private fun writeFastlaneData(language: String, data: List<PoEditorTerm>, resDir: File) {
+        val created = mutableSetOf<Pair<String, String>>()
         for (term in data) {
             term.translation?.content ?: continue
             val types = term.tags.filter { it.startsWith("fastlane-") }.map { it.substringAfter('-') }
             types.forEach {
-                val langDir = resDir.resolve(it).resolve(language)
-                langDir.mkdirs()
+                val tag = expandLanguageTag(language)
+                val langDir = resDir.resolve(it).resolve(tag)
+                if (created.add(it to tag)) {
+                    check(langDir.mkdirs()) { "Couldn't create $langDir" }
+                }
                 val out = langDir.resolve(term.key + ".txt")
                 out.writeText(term.translation.content)
             }
         }
     }
+
+    private fun expandLanguageTag(language: String): String {
+        return when (language) {
+            // special case: Google (incorrectly) takes zh-CN for simplified Chinese and zh-TN for traditional (should use the BCP47 script data)
+            "zh-Hans" -> "zh-CN"
+            "zn-Hant" -> "zh-TN"
+            else -> {
+                // reduce precision
+                Locale.lookupTag(listOf(Locale.LanguageRange(language)), AVAILABLE_TAGS)?.let {
+                    return it
+                }
+                // increase precision (only one choice)
+                val filter = Locale.filterTags(listOf(Locale.LanguageRange(language)), AVAILABLE_TAGS)
+                filter.singleOrNull()?.let {
+                    return it
+                }
+                // increase precision (multiple choices, accept if language == region)
+                filter
+                        .map { it to Locale.forLanguageTag(it) }
+                        .singleOrNull { it.second.language.equals(it.second.country, ignoreCase = true) }
+                        ?.let {
+                            return it.first
+                        }
+                // no match
+                error("No matching tags for $language (see https://support.google.com/googleplay/android-developer/answer/9844778 for full list)")
+            }
+        }
+    }
 }
+
+
+/**
+ * List of available language tags from https://support.google.com/googleplay/android-developer/answer/9844778
+ */
+private val AVAILABLE_TAGS = listOf(
+        "af",
+        "am",
+        "ar",
+        "hy-AM",
+        "az-AZ",
+        "eu-ES",
+        "be",
+        "bn-BD",
+        "bg",
+        "my-MM",
+        "ca",
+        "zh-HK",
+        "zh-CN",
+        "zh-TW",
+        "hr",
+        "cs-CZ",
+        "da-DK",
+        "nl-NL",
+        "en-AU",
+        "en-CA",
+        "en-IN",
+        "en-SG",
+        "en-GB",
+        "en-US",
+        "et",
+        "fil",
+        "fi-FI",
+        "fr-FR",
+        "fr-CA",
+        "gl-ES",
+        "ka-GE",
+        "de-DE",
+        "el-GR",
+        "iw-IL",
+        "hi-IN",
+        "hu-HU",
+        "is-IS",
+        "id",
+        "it-IT",
+        "ja-JP",
+        "kn-IN",
+        "km-KH",
+        "ko-KR",
+        "ky-KG",
+        "lo-LA",
+        "lv",
+        "lt",
+        "mk-MK",
+        "ms",
+        "ml-IN",
+        "mr-IN",
+        "mn-MN",
+        "ne-NP",
+        "no-NO",
+        "fa",
+        "pl-PL",
+        "pt-BR",
+        "pt-PT",
+        "ro",
+        "rm",
+        "ru-RU",
+        "sr",
+        "si-LK",
+        "sk",
+        "sl",
+        "es-419",
+        "es-ES",
+        "es-US",
+        "sw",
+        "sv-SE",
+        "ta-IN",
+        "te-IN",
+        "th",
+        "tr-TR",
+        "uk",
+        "vi",
+        "zu"
+)
