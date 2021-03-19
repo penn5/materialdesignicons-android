@@ -35,51 +35,102 @@ open class PoEditorPluginExtension {
     var projectId: Int? = null
 }
 
-open class ImportPoEditorStringsTask : DefaultTask() {
+abstract class ImportPoEditorStringsBaseTask<T> : DefaultTask() {
     @TaskAction
     fun doAction() {
         try {
             // Don't throw an error, probably some other person is building who doesn't have poeditor set up
-            val apiToken: String = project.poeditor.apiToken ?: return
+            val apiToken: String = project.poeditor.apiToken ?: run {
+                System.err.println("Please provide a PoEditor API token to import translations.")
+                return
+            }
             // Do throw an error, the user provided an api key but the project is wrong
-            val projectId = project.poeditor.projectId ?: throw RuntimeException("Project ID not set for PoEditor")
+            val projectId = project.poeditor.projectId
+                    ?: throw RuntimeException("Project ID not set for PoEditor")
             val poProject = PoEditorAPI(apiToken).getProject(projectId)
 
             val languages = poProject.listLanguages().map { it.code }
 
-            val srcSet = project.android?.sourceSets?.associate { Pair(it.name, it.res.srcDirs) }?.getOrDefault("main", null)
-            val resDir = (srcSet ?: throw RuntimeException("Unable to detect srcSet for res directory")).elementAtOrNull(0)
-            resDir ?: throw RuntimeException("Unable to detect res directory for srcSet")
+            val tmp = init()
 
-            for (name in resDir.list { _, name -> name.startsWith("values") }!!) {
-                val dir = resDir.resolve(name)
-                if (!dir.isDirectory)
-                    continue
-                dir.resolve("strings.xml").delete()
-            }
-
-            var dir: File
             for (language in languages) {
-                dir = if (Locale.forLanguageTag(poProject.referenceLanguage) == Locale.forLanguageTag(language))
-                    File(resDir, "values")
-                else
-                    File(resDir, languageTagToAndroid(language))
-                if (!dir.isDirectory)
-                    dir.mkdir() // not mkdirs, because the parent should always exist and if it doesn't we should fail
-                val terms = poProject.getTerms(language).filterNot { it.tags.contains("ignore-string-android") }
-                val translations = terms.associate { it.key to it.translation?.content }
-                        .filterValues { it != null }.mapValues { it.value!! }
-                val data = dataToStringsXml(translations).toString(PrintOptions(singleLineTextElements = true))
-                File(dir, "strings.xml").writeText(data)
+                val terms = poProject.getTerms(language)
+                val incompleteSets = mutableSetOf<String>()
+                for (term in terms) {
+                    if (term.translation?.content != null)
+                        continue
+                    for (tag in term.tags) {
+                        if (!tag.startsWith("require-all-"))
+                            continue
+                        incompleteSets.add(tag.substringBeforeLast("-keep-"))
+                    }
+                }
+                val filteredTerms = terms.map {
+                    var active = default
+                    for (tag in it.tags) {
+                        if (tag == "ignore-string-$platform" || (!tag.endsWith("-keep-$platform") && tag.substringBeforeLast("-keep-") in incompleteSets)) {
+                            active = false
+                            break
+                        } else if (tag == platform) {
+                            active = true
+                        }
+                    }
+                    if (active)
+                        it
+                    else
+                        it.copy(translation = null)
+                }
+                write(language, filteredTerms, poProject, tmp)
             }
         } catch (e: IOException) {
             e.printStackTrace()
         }
     }
 
+    abstract val platform: String
+    abstract val default: Boolean
+    abstract fun init(): T
+    abstract fun write(language: String, terms: List<PoEditorTerm>, project: PoEditorProject, data: T)
+}
+open class ImportPoEditorStringsTask : ImportPoEditorStringsBaseTask<File>() {
+    override val platform = "android"
+    override val default = true
+
+    override fun init(): File {
+        val srcSet = project.android?.sourceSets?.associate { Pair(it.name, it.res.srcDirs) }?.getOrDefault("main", null)
+        val resDir = (srcSet ?: throw RuntimeException("Unable to detect srcSet for res directory")).elementAtOrNull(0)
+        resDir ?: throw RuntimeException("Unable to detect res directory for srcSet")
+
+        for (name in resDir.list { _, name -> name.startsWith("values") }!!) {
+            val dir = resDir.resolve(name)
+            if (!dir.isDirectory)
+                continue
+            dir.resolve("strings.xml").delete()
+        }
+        return resDir
+    }
+
+    override fun write(language: String, terms: List<PoEditorTerm>, project: PoEditorProject, data: File) {
+        val dir = if (Locale.forLanguageTag(project.referenceLanguage) == Locale.forLanguageTag(language))
+            File(data, "values")
+        else
+            File(data, languageTagToAndroid(language))
+        if (!dir.isDirectory)
+            dir.mkdir() // not mkdirs, because the parent should always exist and if it doesn't we should fail
+        val translations = terms.associate { it.key to it.translation?.content }
+                .filterValues { it != null }.mapValues { it.value!! }
+        val xml = dataToStringsXml(translations).toString(PrintOptions(singleLineTextElements = true))
+        File(dir, "strings.xml").writeText(xml)
+    }
+
     private fun languageTagToAndroid(tag: String): String {
         // https://developer.android.com/guide/topics/resources/providing-resources.html#AlternativeResources
         // We ought to use BCP47 (as returned by PoEditor) but it isn't supported before API 24
+        when (tag) {
+            // special case: Android does not support BCP47 until
+            "zh-Hans" -> return "values-zh-rcn"
+            "zn-Hant" -> return "values-zh-rtw"
+        }
         val locale = Locale.forLanguageTag(tag)
         var ret =  "values-${locale.language}"
         if (locale.country != "")
@@ -96,45 +147,33 @@ open class ImportPoEditorStringsTask : DefaultTask() {
         }
     }
 
+    // https://developer.android.com/guide/topics/resources/string-resource#escaping_quotes
     private fun escapeValue(value: String) =
             value.replace("\\", "\\\\").replace("@", "\\@").replace("?", "\\?")
                     .replace("'", "\\'").replace("\"", "\\\"").replace("\n", "\\n")
 }
 
-open class ImportPoEditorStringsForFastlaneTask : DefaultTask() {
-    @TaskAction
-    fun doAction() {
-        try {
-            // Don't throw an error, probably some other person is building who doesn't have poeditor set up
-            val apiToken: String = project.poeditor.apiToken ?: return
-            // Do throw an error, the user provided an api key but the project is wrong
-            val projectId = project.poeditor.projectId ?: throw RuntimeException("Project ID not set for PoEditor")
-            val poProject = PoEditorAPI(apiToken).getProject(projectId)
+open class ImportPoEditorStringsForFastlaneTask : ImportPoEditorStringsBaseTask<File>() {
+    override val platform = "fastlane-android"
+    override val default = false
 
-            val languages = poProject.listLanguages().map { it.code }
-
-            val resDir = project.rootProject.rootDir.resolve("fastlane/metadata")
-
-            resDir.deleteRecursively()
-
-            for (language in languages) {
-                val terms = poProject.getTerms(language).filter { it.tags.contains("fastlane-android") }
-                writeFastlaneData(language, terms, resDir)
-            }
-        } catch (e: IOException) {
-            e.printStackTrace()
-        }
+    override fun init(): File {
+        val resDir = project.rootProject.rootDir.resolve("fastlane/metadata")
+        resDir.deleteRecursively()
+        return resDir
     }
 
-    private fun writeFastlaneData(language: String, data: List<PoEditorTerm>, resDir: File) {
+    override fun write(language: String, terms: List<PoEditorTerm>, project: PoEditorProject, data: File) {
         val created = mutableSetOf<Pair<String, String>>()
-        for (term in data) {
+        for (term in terms) {
             term.translation?.content ?: continue
+            if (!term.tags.contains("fastlane-android"))
+                continue
             val types = term.tags.filter { it.startsWith("fastlane-") }.map { it.substringAfter('-') }
             types.forEach {
-                val tag = expandLanguageTag(language)
-                val langDir = resDir.resolve(it).resolve(tag)
-                if (created.add(it to tag)) {
+                val languageTag = expandLanguageTag(language)
+                val langDir = data.resolve(it).resolve(languageTag)
+                if (created.add(it to languageTag)) {
                     check(langDir.mkdirs()) { "Couldn't create $langDir" }
                 }
                 val out = langDir.resolve(term.key + ".txt")
@@ -146,8 +185,8 @@ open class ImportPoEditorStringsForFastlaneTask : DefaultTask() {
     private fun expandLanguageTag(language: String): String {
         return when (language) {
             // special case: Google (incorrectly) takes zh-CN for simplified Chinese and zh-TN for traditional (should use the BCP47 script data)
-            "zh-Hans" -> "zh-CN"
-            "zn-Hant" -> "zh-TN"
+            "zh-Hans" -> "zh-cn"
+            "zn-Hant" -> "zh-tn"
             else -> {
                 // reduce precision
                 Locale.lookupTag(listOf(Locale.LanguageRange(language)), AVAILABLE_TAGS)?.let {
