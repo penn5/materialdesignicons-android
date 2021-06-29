@@ -26,7 +26,7 @@ publishing {
 
 repositories {
     google()
-    jcenter()
+    mavenCentral()
 }
 dependencies {
     compileOnly(gradleApi())
