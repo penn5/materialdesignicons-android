@@ -4,6 +4,7 @@ import com.android.build.gradle.BaseExtension
 import org.gradle.api.DefaultTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskAction
 import org.gradle.kotlin.dsl.create
 import org.gradle.kotlin.dsl.invoke
@@ -35,17 +36,16 @@ open class PoEditorPluginExtension {
     var projectId: Int? = null
 }
 
-abstract class ImportPoEditorStringsBaseTask<T> : DefaultTask() {
-    @TaskAction
-    fun doAction() {
+interface ImportPoEditorStringsBaseTask<T> {
+    fun doBaseAction() {
         try {
             // Don't throw an error, probably some other person is building who doesn't have poeditor set up
-            val apiToken: String = project.poeditor.apiToken ?: run {
+            val apiToken: String = thisProject.poeditor.apiToken ?: run {
                 System.err.println("Please provide a PoEditor API token to import translations.")
                 return
             }
             // Do throw an error, the user provided an api key but the project is wrong
-            val projectId = project.poeditor.projectId
+            val projectId = thisProject.poeditor.projectId
                     ?: throw RuntimeException("Project ID not set for PoEditor")
             val poProject = PoEditorAPI(apiToken).getProject(projectId)
 
@@ -87,14 +87,23 @@ abstract class ImportPoEditorStringsBaseTask<T> : DefaultTask() {
         }
     }
 
-    abstract val platform: String
-    abstract val default: Boolean
-    abstract fun init(): T
-    abstract fun write(language: String, terms: List<PoEditorTerm>, project: PoEditorProject, data: T)
+    val platform: String
+    val default: Boolean
+    val thisProject: Project
+    fun init(): T
+    fun write(language: String, terms: List<PoEditorTerm>, project: PoEditorProject, data: T)
 }
-open class ImportPoEditorStringsTask : ImportPoEditorStringsBaseTask<File>() {
+
+open class ImportPoEditorStringsTask : ImportPoEditorStringsBaseTask<File>, DefaultTask() {
+    @Internal
     override val platform = "android"
+    @Internal
     override val default = true
+    @Internal
+    override val thisProject = project
+
+    @TaskAction
+    fun doAction() = super.doBaseAction()
 
     override fun init(): File {
         val srcSet = project.android?.sourceSets?.associate { Pair(it.name, it.res.srcDirs) }?.getOrDefault("main", null)
@@ -153,9 +162,16 @@ open class ImportPoEditorStringsTask : ImportPoEditorStringsBaseTask<File>() {
                     .replace("'", "\\'").replace("\"", "\\\"").replace("\n", "\\n")
 }
 
-open class ImportPoEditorStringsForFastlaneTask : ImportPoEditorStringsBaseTask<File>() {
+open class ImportPoEditorStringsForFastlaneTask : ImportPoEditorStringsBaseTask<File>, DefaultTask() {
+    @Internal
     override val platform = "fastlane-android"
+    @Internal
     override val default = false
+    @Internal
+    override val thisProject = project
+
+    @TaskAction
+    fun doAction() = super.doBaseAction()
 
     override fun init(): File {
         val resDir = project.rootProject.rootDir.resolve("fastlane/metadata")
