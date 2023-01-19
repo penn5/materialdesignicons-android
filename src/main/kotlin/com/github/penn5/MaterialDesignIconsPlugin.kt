@@ -65,16 +65,32 @@ open class UpdateDrawablesTask : DefaultTask() {
                     if (signature != SIGNATURE) {
                         null
                     } else {
-                        reader.readLine().dropLast(3) /* drop --> */
+                        reader.readLine().trim().dropLast(3).trimEnd() // drop "-->"
                     }
                 }
                 iconID ?: continue
-                if ((meta[iconID] as Map<*, *>)["deprecated"] as Boolean) {
-                    logger.warn("Deprecated icon ${file.path}")
-                }
+                val iconMeta = meta[iconID] as Map<*, *>
                 val icon = getIcon(iconID)
                 file.bufferedWriter().use { writer ->
-                    writer.write("$SIGNATURE$iconID-->\n")
+                    writer.write("$SIGNATURE${sanitizeComment(iconID)}-->\n")
+                    if (iconMeta["deprecated"] as Boolean) {
+                        logger.warn("Deprecated icon ${file.path}")
+                    } else {
+                        // All icons are Apache 2.0 except brand icons, but they're deprecated.
+                        writer.write("<!-- SPDX-License-Identifier: Apache-2.0 -->\n")
+                        writer.write("<!-- Copyright (C) ${sanitizeComment(iconMeta["author"] as String)} version ${sanitizeComment(iconMeta["version"] as String)}\n")
+                        writer.write("Licensed under the Apache License, Version 2.0 (the \"License\");\n")
+                        writer.write("you may not use this file except in compliance with the License.\n")
+                        writer.write("You may obtain a copy of the License at\n")
+                        writer.write("\n")
+                        writer.write("    http://www.apache.org/licenses/LICENSE-2.0\n")
+                        writer.write("\n")
+                        writer.write("Unless required by applicable law or agreed to in writing, software\n")
+                        writer.write("distributed under the License is distributed on an \"AS IS\" BASIS,\n")
+                        writer.write("WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n")
+                        writer.write("See the License for the specific language governing permissions and\n")
+                        writer.write("limitations under the License. -->\n")
+                    }
                     WriterOutputStream(writer, StandardCharsets.UTF_8).use { outputStream ->
                         icon.transferTo(outputStream)
                     }
@@ -83,6 +99,11 @@ open class UpdateDrawablesTask : DefaultTask() {
         } catch (e: IOException) {
             e.printStackTrace()
         }
+    }
+
+    private fun sanitizeComment(text: String): String {
+        require(!text.contains("--")) { "$text must not contain \"--\"" }
+        return text
     }
 
     @Internal
