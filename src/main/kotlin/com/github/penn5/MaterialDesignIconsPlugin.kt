@@ -2,6 +2,7 @@ package com.github.penn5
 
 import com.android.build.gradle.BaseExtension
 import groovy.json.JsonSlurper
+import org.apache.commons.io.input.UnixLineEndingInputStream
 import org.apache.commons.io.output.WriterOutputStream
 import org.gradle.api.DefaultTask
 import org.gradle.api.Plugin
@@ -92,7 +93,7 @@ open class UpdateDrawablesTask : DefaultTask() {
                         writer.write("limitations under the License. -->\n")
                     }
                     WriterOutputStream(writer, StandardCharsets.UTF_8).use { outputStream ->
-                        icon.transferTo(outputStream)
+                        UnixLineEndingInputStream(icon, true).transferTo(outputStream)
                     }
                 }
             }
