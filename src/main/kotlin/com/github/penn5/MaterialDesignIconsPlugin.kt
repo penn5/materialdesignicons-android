@@ -50,6 +50,7 @@ private fun getIcon(iconID: String): InputStream {
         requestMethod = "GET"
     }
     conn.connect()
+    check(conn.responseCode == 200) { "Connection $conn failed with reponse code ${conn.responseCode}" }
     return conn.inputStream!!
 }
 
