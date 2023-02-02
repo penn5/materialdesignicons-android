@@ -126,7 +126,6 @@ open class UpdateDrawablesTask : DefaultTask() {
                 val icon = getIcon(iconMeta["name"] as String)
                 file.bufferedWriter().use { writer ->
                     writer.write("$SIGNATURE${sanitizeComment(iconID)}-->\n")
-                    println(iconMeta)
                     if (iconMeta["deprecated"] as Boolean? == true) {
                         logger.warn("Deprecated icon ${file.path}")
                     } else {
