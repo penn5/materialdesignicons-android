@@ -1,7 +1,6 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    `maven-publish`
     kotlin("jvm") version "1.6.21"
     `kotlin-dsl`
 }
@@ -18,19 +17,13 @@ gradlePlugin {
     }
 }
 
-publishing {
-    repositories {
-        maven(url = "build/repository")
-    }
-}
-
 repositories {
     google()
     mavenCentral()
 }
 dependencies {
     compileOnly(gradleApi())
-    implementation("com.android.tools.build:gradle:7.4.2")
+    implementation("com.android.tools.build:gradle:8.0.1")
     implementation("commons-io:commons-io:2.11.0")
 }
 
